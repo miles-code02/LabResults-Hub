@@ -91,7 +91,7 @@
         verification-type: verification-type,
         certification-level: certification-level,
         authorized-tests: authorized-tests,
-        registration-date: block-height,
+        registration-date: stacks-block-height,
         is-active: true
       }
     )
@@ -117,7 +117,7 @@
         result-data: result-data,
         units: units,
         normal-range: normal-range,
-        result-timestamp: block-height,
+        result-timestamp: stacks-block-height,
         verification-status: "pending",
         verification-deadline: verification-deadline,
         critical-value: critical-value
@@ -151,11 +151,11 @@
         (consensus-data (unwrap! (map-get? verification-consensus { result-id: result-id }) ERR_RESULT_NOT_FOUND)))
     (asserts! (get is-active verifier-data) ERR_INVALID_VERIFIER)
     (asserts! (is-none existing-verification) ERR_ALREADY_VERIFIED)
-    (asserts! (< block-height (get verification-deadline result-data)) ERR_VERIFICATION_EXPIRED)
+    (asserts! (< stacks-block-height (get verification-deadline result-data)) ERR_VERIFICATION_EXPIRED)
     (map-set verification-records
       { result-id: result-id, verifier-id: tx-sender }
       {
-        verification-date: block-height,
+        verification-date: stacks-block-height,
         verification-method: verification-method,
         confidence-score: confidence-score,
         digital-signature: digital-signature,
@@ -198,7 +198,7 @@
       {
         challenger: tx-sender,
         challenge-reason: challenge-reason,
-        challenge-date: block-height,
+        challenge-date: stacks-block-height,
         evidence-hash: evidence-hash,
         status: "open",
         resolution-date: u0
@@ -225,7 +225,7 @@
       { result-id: result-id, challenge-id: challenge-id }
       (merge challenge-data {
         status: resolution,
-        resolution-date: block-height
+        resolution-date: stacks-block-height
       })
     )
     (if (is-eq resolution "upheld")
