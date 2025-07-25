@@ -241,3 +241,43 @@
     (ok true)
   )
 )
+
+(define-public (update-verification-threshold (new-threshold uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) ERR_NOT_AUTHORIZED)
+    (var-set verification-threshold new-threshold)
+    (ok true)
+  )
+)
+
+(define-read-only (get-lab-result (result-id uint))
+  (map-get? lab-results { result-id: result-id })
+)
+
+(define-read-only (get-verification-record (result-id uint) (verifier-id principal))
+  (map-get? verification-records { result-id: result-id, verifier-id: verifier-id })
+)
+
+(define-read-only (get-verifier-info (verifier-id principal))
+  (map-get? authorized-verifiers { verifier-id: verifier-id })
+)
+
+(define-read-only (get-result-challenge (result-id uint) (challenge-id uint))
+  (map-get? result-challenges { result-id: result-id, challenge-id: challenge-id })
+)
+
+(define-read-only (get-verification-consensus (result-id uint))
+  (map-get? verification-consensus { result-id: result-id })
+)
+
+(define-read-only (get-verification-threshold)
+  (var-get verification-threshold)
+)
+
+(define-read-only (get-next-result-id)
+  (var-get next-result-id)
+)
+
+(define-read-only (get-next-challenge-id)
+  (var-get next-challenge-id)
+)
