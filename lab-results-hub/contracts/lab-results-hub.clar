@@ -137,3 +137,107 @@
     (ok result-id)
   )
 )
+
+(define-public (verify-result
+  (result-id uint)
+  (verification-method (string-ascii 50))
+  (confidence-score uint)
+  (digital-signature (buff 64))
+  (verification-notes (string-ascii 300))
+  (is-valid bool))
+  (let ((result-data (unwrap! (map-get? lab-results { result-id: result-id }) ERR_RESULT_NOT_FOUND))
+        (verifier-data (unwrap! (map-get? authorized-verifiers { verifier-id: tx-sender }) ERR_INVALID_VERIFIER))
+        (existing-verification (map-get? verification-records { result-id: result-id, verifier-id: tx-sender }))
+        (consensus-data (unwrap! (map-get? verification-consensus { result-id: result-id }) ERR_RESULT_NOT_FOUND)))
+    (asserts! (get is-active verifier-data) ERR_INVALID_VERIFIER)
+    (asserts! (is-none existing-verification) ERR_ALREADY_VERIFIED)
+    (asserts! (< block-height (get verification-deadline result-data)) ERR_VERIFICATION_EXPIRED)
+    (map-set verification-records
+      { result-id: result-id, verifier-id: tx-sender }
+      {
+        verification-date: block-height,
+        verification-method: verification-method,
+        confidence-score: confidence-score,
+        digital-signature: digital-signature,
+        verification-notes: verification-notes,
+        is-valid: is-valid
+      }
+    )
+    (let ((new-total (+ (get total-verifications consensus-data) u1))
+          (new-positive (if is-valid (+ (get positive-verifications consensus-data) u1) (get positive-verifications consensus-data))))
+      (map-set verification-consensus
+        { result-id: result-id }
+        (merge consensus-data {
+          total-verifications: new-total,
+          positive-verifications: new-positive,
+          consensus-reached: (>= new-positive (get consensus-threshold consensus-data)),
+          final-status: (if (>= new-positive (get consensus-threshold consensus-data)) "verified" "pending")
+        })
+      )
+      (if (>= new-positive (get consensus-threshold consensus-data))
+        (map-set lab-results
+          { result-id: result-id }
+          (merge result-data { verification-status: "verified" })
+        )
+        true
+      )
+    )
+    (ok true)
+  )
+)
+
+(define-public (challenge-result
+  (result-id uint)
+  (challenge-reason (string-ascii 200))
+  (evidence-hash (buff 32)))
+  (let ((result-data (unwrap! (map-get? lab-results { result-id: result-id }) ERR_RESULT_NOT_FOUND))
+        (challenge-id (var-get next-challenge-id)))
+    (asserts! (is-some (map-get? authorized-verifiers { verifier-id: tx-sender })) ERR_INVALID_VERIFIER)
+    (map-set result-challenges
+      { result-id: result-id, challenge-id: challenge-id }
+      {
+        challenger: tx-sender,
+        challenge-reason: challenge-reason,
+        challenge-date: block-height,
+        evidence-hash: evidence-hash,
+        status: "open",
+        resolution-date: u0
+      }
+    )
+    (map-set lab-results
+      { result-id: result-id }
+      (merge result-data { verification-status: "challenged" })
+    )
+    (var-set next-challenge-id (+ challenge-id u1))
+    (ok challenge-id)
+  )
+)
+
+(define-public (resolve-challenge
+  (result-id uint)
+  (challenge-id uint)
+  (resolution (string-ascii 30)))
+  (let ((challenge-data (unwrap! (map-get? result-challenges { result-id: result-id, challenge-id: challenge-id }) ERR_RESULT_NOT_FOUND))
+        (result-data (unwrap! (map-get? lab-results { result-id: result-id }) ERR_RESULT_NOT_FOUND)))
+    (asserts! (is-eq tx-sender contract-owner) ERR_NOT_AUTHORIZED)
+    (asserts! (is-eq (get status challenge-data) "open") ERR_NOT_AUTHORIZED)
+    (map-set result-challenges
+      { result-id: result-id, challenge-id: challenge-id }
+      (merge challenge-data {
+        status: resolution,
+        resolution-date: block-height
+      })
+    )
+    (if (is-eq resolution "upheld")
+      (map-set lab-results
+        { result-id: result-id }
+        (merge result-data { verification-status: "invalid" })
+      )
+      (map-set lab-results
+        { result-id: result-id }
+        (merge result-data { verification-status: "verified" })
+      )
+    )
+    (ok true)
+  )
+)
