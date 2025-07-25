@@ -75,3 +75,65 @@
 (define-data-var verification-threshold uint u3)
 
 (define-constant contract-owner tx-sender)
+
+(define-public (register-verifier
+  (verifier-id principal)
+  (verifier-name (string-ascii 100))
+  (verification-type (string-ascii 50))
+  (certification-level (string-ascii 30))
+  (authorized-tests (string-ascii 200)))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) ERR_NOT_AUTHORIZED)
+    (map-set authorized-verifiers
+      { verifier-id: verifier-id }
+      {
+        verifier-name: verifier-name,
+        verification-type: verification-type,
+        certification-level: certification-level,
+        authorized-tests: authorized-tests,
+        registration-date: block-height,
+        is-active: true
+      }
+    )
+    (ok true)
+  )
+)
+
+(define-public (submit-lab-result
+  (patient-id principal)
+  (test-name (string-ascii 100))
+  (result-data (string-ascii 600))
+  (units (string-ascii 50))
+  (normal-range (string-ascii 100))
+  (verification-deadline uint)
+  (critical-value bool))
+  (let ((result-id (var-get next-result-id)))
+    (map-set lab-results
+      { result-id: result-id }
+      {
+        patient-id: patient-id,
+        laboratory: tx-sender,
+        test-name: test-name,
+        result-data: result-data,
+        units: units,
+        normal-range: normal-range,
+        result-timestamp: block-height,
+        verification-status: "pending",
+        verification-deadline: verification-deadline,
+        critical-value: critical-value
+      }
+    )
+    (map-set verification-consensus
+      { result-id: result-id }
+      {
+        total-verifications: u0,
+        positive-verifications: u0,
+        consensus-reached: false,
+        consensus-threshold: (if critical-value u5 u3),
+        final-status: "pending"
+      }
+    )
+    (var-set next-result-id (+ result-id u1))
+    (ok result-id)
+  )
+)
